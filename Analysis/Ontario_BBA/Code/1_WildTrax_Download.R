@@ -66,7 +66,9 @@ all_species <- readRDS("../Data_Cleaned/all_species.RDS")
 # Polygon delineating study area boundary
 # -----------------------------------------------
 
-Study_Area <- st_read("../../../Data/Spatial/National/BCR/BCR_Terrestrial_master.shp")  %>%
+download.file(url = "https://birdscanada.org/download/gislab/bcr_terrestrial_shape.zip?_ga=2.123276619.1787785417.1706559261-142409804.1705510123", destfile = "../Data/bcr_terrestrial_shape.zip",mode = "wb")
+unzip("../Data/bcr_terrestrial_shape.zip", exdir = "../Data")
+Study_Area <- st_read("../Data/BCR_Terrestrial/BCR_Terrestrial_master.shp")  %>%
   subset(PROVINCE_S == "ONTARIO") %>%
   st_make_valid() %>%
   dplyr::select(BCR, PROVINCE_S)
@@ -87,69 +89,69 @@ PC_projects <- wt_get_download_summary(sensor_id = 'PC') %>% subset(sensor == "P
 # # ---------------------------------------------------------
 # # Download projects with 'ARU' data
 # # ---------------------------------------------------------
-# 
+#
 # ARU_fulldat <- data.frame()
-# 
+#
 # for (i in 1:nrow(ARU_projects)){
 #   print(i)
-# 
+#
 #   loc <- wt_download_report(project_id = ARU_projects$project_id[i], sensor_id = "ARU", reports = c("location"), weather_cols = FALSE)
-# 
+#
 #   if (is.null(nrow(loc))) next
-# 
+#
 #   loc <- loc %>%
 #     select(location_id,latitude,longitude) %>%
 #     unique()
-# 
+#
 #   rec <- wt_download_report(project_id = ARU_projects$project_id[i], sensor_id = "ARU", reports = c("recording"), weather_cols = FALSE) %>%
 #     mutate(year = as.numeric(year(recording_date_time))) %>%
 #     select(project_id,location_id,year) %>%
 #     unique()
-# 
+#
 #   loc <- wt_download_report(project_id = ARU_projects$project_id[i], sensor_id = "ARU", reports = c("location"), weather_cols = FALSE) %>%
 #     select(location_id,latitude,longitude) %>%
 #     unique()
-# 
+#
 #   dat <- full_join(loc,rec)
-# 
+#
 #   ARU_fulldat <- rbind(ARU_fulldat, dat)
 # }
-# 
+#
 # write.csv(ARU_fulldat, file = "../Data_Cleaned/WildTrax/WildTrax_ARU_locations.csv", row.names = FALSE)
-# 
+#
 # # ---------------------------------------------------------
 # # Download projects with 'PC' data
 # # ---------------------------------------------------------
-# 
+#
 # PC_fulldat <- data.frame()
-# 
+#
 # for (i in 1:nrow(PC_projects)){
 #   print(i)
-# 
+#
 #   loc <- wt_download_report(project_id = PC_projects$project_id[i], sensor_id = "PC", reports = c("location"), weather_cols = FALSE)
-# 
+#
 #   if (is.null(nrow(loc))) next
-# 
+#
 #   loc <- loc %>%
 #     select(location_id,latitude,longitude) %>%
 #     unique()
-# 
+#
 #   rec <- wt_download_report(project_id = PC_projects$project_id[i], sensor_id = "PC", reports = c("point_count"), weather_cols = FALSE) %>%
 #     mutate(year = as.numeric(year(survey_date))) %>%
 #     select(project_id,location_id,year) %>%
 #     unique()
-# 
+#
 #   loc <- wt_download_report(project_id = PC_projects$project_id[i], sensor_id = "PC", reports = c("location"), weather_cols = FALSE) %>%
 #     select(location_id,latitude,longitude) %>%
 #     unique()
-# 
+#
 #   dat <- full_join(loc,rec)
-# 
+#
 #   PC_fulldat <- rbind(PC_fulldat, dat)
 # }
-# 
+#
 # write.csv(PC_fulldat, file = "../Data_Cleaned/WildTrax/WildTrax_PC_locations.csv", row.names = FALSE)
-# 
+#
 # ---------------------------------------------------------
 # Subset to data within Study Area Boundary
 # ---------------------------------------------------------
@@ -245,7 +247,7 @@ ARU_recordings$recording_date_time <- lubridate::ymd_hms(ARU_recordings$recordin
 
 ARU_recordings <- ARU_recordings %>%
   mutate(Duration_Seconds = str_split_i(method," ",1) %>% str_sub(start = 1,end = -2) %>% as.numeric(),
-         Transcription_Method = str_split_i(method," ",2) %>% str_sub(start = 2,end = -1)) 
+         Transcription_Method = str_split_i(method," ",2) %>% str_sub(start = 2,end = -1))
 
 # ---------------------------------------------------------
 # Convert TMTT observations in ARU_tags dataframe
@@ -255,7 +257,7 @@ ARU_tags$individual_count <- ARU_tags$abundance
 ARU_tags <- wt_replace_tmtt(ARU_tags)
 
 # ---------------------------------------------------------
-# Fix abundance 
+# Fix abundance
 # ---------------------------------------------------------
 
 ARU_tags$individual_count <- as.numeric(ARU_tags$individual_count)
@@ -300,7 +302,7 @@ ARU_recordings_SPT <- dplyr::select(ARU_recordings_SPT,
 duplicated_ids <- ARU_recordings_SPT$recording_id[duplicated(ARU_recordings_SPT$recording_id)] %>% unique()
 subset(ARU_recordings_SPT,recording_id %in% duplicated_ids) %>% arrange(recording_id)
 
-# Remove duplicated recording IDs 
+# Remove duplicated recording IDs
 # (!!! THIS NEEDS TO BE CAREFULLY INSPECTED IN THE FUTURE  !!!)
 duplicated_rows <- which(duplicated(ARU_recordings_SPT$recording_id))
 ARU_recordings_SPT <- ARU_recordings_SPT[-duplicated_rows,]
@@ -315,15 +317,15 @@ ARU_tags_SPT$recording_id <- factor(ARU_tags_SPT$recording_id,levels = unique(AR
 
 # Total number of individuals detected per survey (sum of individual counts)
 ARU_counts_SPT <- ARU_tags_SPT %>%
-  
+
   # Task ID is different observers
   group_by(species_code,recording_id,task_id) %>%
   summarize(total_count = sum(individual_count)) %>%
-  
+
   # Take mean if there are multiple tasks
   group_by(species_code,recording_id) %>%
   summarize(mean_count = round(mean(total_count))) %>%
-  
+
   as.data.frame() %>%
   pivot_wider(names_from = species_code,
               values_from = mean_count,
@@ -370,21 +372,21 @@ ARU_tags_SPM$recording_id <- factor(ARU_tags_SPM$recording_id,
 
 # Total number of individuals detected per survey (sum of individual counts)
 ARU_counts_SPM <- ARU_tags_SPM %>%
-  
+
   # Task ID is different observers
   group_by(species_code,recording_id,task_id,individual_order) %>%
-  
+
   # Remove repeated observations of individual birds (individual order)
   summarize(individual_count = round(mean(individual_count))) %>%
-  
+
   # Task ID is different observers
   group_by(species_code,recording_id,task_id) %>%
   summarize(total_count = sum(individual_count)) %>%
-  
+
   # Take mean if there are multiple tasks
   group_by(species_code,recording_id) %>%
   summarize(mean_count = round(mean(total_count))) %>%
-  
+
   as.data.frame() %>%
   pivot_wider(names_from = species_code,
               values_from = mean_count,
@@ -500,10 +502,10 @@ PC_counts$survey_id <- factor(PC_counts$survey_id, levels = PC_surveys$survey_id
 
 # Total number of individuals detected per survey (sum of individual counts)
 PC_counts <- PC_counts %>%
-  
+
   group_by(species_code,survey_id) %>%
   summarize(total_count = sum(individual_count)) %>%
-  
+
   as.data.frame() %>%
   pivot_wider(names_from = species_code,
               values_from = total_count,
@@ -526,18 +528,18 @@ mean(PC_counts$survey_id == PC_surveys$survey_id) # should be 1
 
 # Combine SPT and SPM into single dataframe
 ARU_recordings_combined <- bind_rows(ARU_recordings_SPT,ARU_recordings_SPM) %>%
-  
-  rename(Project_Name = project, 
-         survey_ID = recording_id, 
-         Date_Time = recording_date_time, 
-         Latitude = latitude, 
+
+  rename(Project_Name = project,
+         survey_ID = recording_id,
+         Date_Time = recording_date_time,
+         Latitude = latitude,
          Longitude = longitude) %>%
-  
+
   mutate(Data_Source = "WildTrax",
          Survey_Type = paste0("ARU_",Transcription_Method),
          Survey_Duration_Minutes = Duration_Seconds/60,
          Max_Distance_Metres = Inf) %>%
-  
+
   dplyr::select(Data_Source,
                 Project_Name,
                 Survey_Type,
@@ -547,21 +549,21 @@ ARU_recordings_combined <- bind_rows(ARU_recordings_SPT,ARU_recordings_SPM) %>%
                 Date_Time,
                 Survey_Duration_Minutes,
                 Max_Distance_Metres)
-  
+
 # Point Counts
 PC_surveys <- PC_surveys %>%
-  
-  rename(Project_Name = project, 
-         survey_ID = survey_id, 
-         Date_Time = survey_date, 
-         Latitude = latitude, 
+
+  rename(Project_Name = project,
+         survey_ID = survey_id,
+         Date_Time = survey_date,
+         Latitude = latitude,
          Longitude = longitude) %>%
-  
+
   mutate(Data_Source = "WildTrax",
          Survey_Type = "Point_Count",
          Survey_Duration_Minutes = as.numeric(Survey_Duration_Minutes),
          Max_Distance_Metres = as.numeric(Max_Distance_Metres)) %>%
-  
+
   dplyr::select(Data_Source,
                 Project_Name,
                 Survey_Type,
@@ -571,7 +573,7 @@ PC_surveys <- PC_surveys %>%
                 Date_Time,
                 Survey_Duration_Minutes,
                 Max_Distance_Metres)
-  
+
 # Combined
 WT_surveyinfo <- bind_rows(ARU_recordings_combined, PC_surveys)
 
@@ -591,11 +593,11 @@ WT_matrix <- matrix(0,nrow=nrow(WT_surveyinfo), ncol = length(WT_species$species
                             dimnames = list(NULL,WT_species$species_code))
 
 for (spp in WT_species_codes){
-  
+
   if (spp %in% colnames(ARU_counts_SPT)) WT_matrix[which(WT_surveyinfo$Survey_Type == "ARU_SPT"),which(colnames(WT_matrix) == spp)] <- as.data.frame(ARU_counts_SPT)[,spp]
   if (spp %in% colnames(ARU_counts_SPM)) WT_matrix[which(WT_surveyinfo$Survey_Type == "ARU_SPM"),which(colnames(WT_matrix) == spp)] <- as.data.frame(ARU_counts_SPM)[,spp]
   if (spp %in% colnames(PC_counts)) WT_matrix[which(WT_surveyinfo$Survey_Type == "Point_Count"),which(colnames(WT_matrix) == spp)] <- as.data.frame(PC_counts)[,spp]
-  
+
 }
 
 # Remove species that were never detected
