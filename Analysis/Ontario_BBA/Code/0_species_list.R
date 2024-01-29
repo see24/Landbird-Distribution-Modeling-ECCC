@@ -8,6 +8,7 @@ my_packs = c('tidyverse',
              'terra',
              'ggspatial',
              'naturecounts',
+             'wildRtrax',
              'suntools')
 
 if (any(!my_packs %in% installed.packages()[, 'Package'])) {install.packages(my_packs[which(!my_packs %in% installed.packages()[, 'Package'])],dependencies = TRUE)}
@@ -58,17 +59,18 @@ wt_auth() # Need your wildtrax username
 # Reconcile species lists between Birds Canada and NatureCounts
 # ------------------------------------------------
 
-BSC_species <- search_species_code() %>% 
+BSC_species <- search_species_code() %>%
+  distinct(species_id, .keep_all = TRUE) %>%
   rename(BSC_spcd = BSCDATA, species_scientific_name = scientific_name) %>%
   dplyr::select(BSC_spcd,species_scientific_name,english_name,french_name) %>%
   unique() %>%
   mutate(index = 1:nrow(.))
 
-BSC_species <- BSC_species[!duplicated(BSC_species$species_scientific_name),]
-
-WT_species <- wildRtrax::wt_get_species() %>% 
+WT_species <- wildRtrax::wt_get_species() %>%
+  # assuming we only want birds
+  filter(species_class == "AVES") %>%
   rename(WT_spcd = species_code) %>%
-  dplyr::select(WT_spcd,species_scientific_name) %>% 
+  dplyr::select(WT_spcd,species_scientific_name) %>%
   unique()
 
 all_species <- full_join(BSC_species,WT_species) %>% relocate(BSC_spcd,WT_spcd) %>% select(-index) %>% unique()
