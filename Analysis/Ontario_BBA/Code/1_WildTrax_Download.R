@@ -73,6 +73,10 @@ Study_Area <- st_read("../Data/BCR_Terrestrial/BCR_Terrestrial_master.shp")  %>%
   st_make_valid() %>%
   dplyr::select(BCR, PROVINCE_S)
 
+# # Only keep BCR 7 and 8 for N ON project
+# Study_Area <- Study_Area %>% filter(BCR %in% c(7,8))
+
+
 # -----------------------------------------------
 # WildTrax credentials
 # -----------------------------------------------
@@ -80,78 +84,94 @@ Study_Area <- st_read("../Data/BCR_Terrestrial/BCR_Terrestrial_master.shp")  %>%
 wt_auth() # Need your wildtrax username
 
 # ---------------------------------------------------------
-# Identify projects that are part of the BBMP
+# Identify projects that are part of the Study Area
 # ---------------------------------------------------------
 
 ARU_projects <- wt_get_download_summary(sensor_id = 'ARU') %>% subset(sensor == "ARU") %>% arrange(project)
 PC_projects <- wt_get_download_summary(sensor_id = 'PC') %>% subset(sensor == "PC") %>% arrange(project)
 
+# Subset projects for testing
+# ARU_projects <- ARU_projects %>% filter(status == "Published - Public", tasks <1000) %>%
+#   slice(1:10)
+# PC_projects <- PC_projects %>% filter(status == "Published - Public", tasks <1000) %>%
+#   slice(1:10)
+
 # # ---------------------------------------------------------
 # # Download projects with 'ARU' data
 # # ---------------------------------------------------------
-#
-# ARU_fulldat <- data.frame()
-#
-# for (i in 1:nrow(ARU_projects)){
-#   print(i)
-#
-#   loc <- wt_download_report(project_id = ARU_projects$project_id[i], sensor_id = "ARU", reports = c("location"), weather_cols = FALSE)
-#
-#   if (is.null(nrow(loc))) next
-#
-#   loc <- loc %>%
-#     select(location_id,latitude,longitude) %>%
-#     unique()
-#
-#   rec <- wt_download_report(project_id = ARU_projects$project_id[i], sensor_id = "ARU", reports = c("recording"), weather_cols = FALSE) %>%
-#     mutate(year = as.numeric(year(recording_date_time))) %>%
-#     select(project_id,location_id,year) %>%
-#     unique()
-#
-#   loc <- wt_download_report(project_id = ARU_projects$project_id[i], sensor_id = "ARU", reports = c("location"), weather_cols = FALSE) %>%
-#     select(location_id,latitude,longitude) %>%
-#     unique()
-#
-#   dat <- full_join(loc,rec)
-#
-#   ARU_fulldat <- rbind(ARU_fulldat, dat)
-# }
-#
-# write.csv(ARU_fulldat, file = "../Data_Cleaned/WildTrax/WildTrax_ARU_locations.csv", row.names = FALSE)
-#
-# # ---------------------------------------------------------
-# # Download projects with 'PC' data
-# # ---------------------------------------------------------
-#
-# PC_fulldat <- data.frame()
-#
-# for (i in 1:nrow(PC_projects)){
-#   print(i)
-#
-#   loc <- wt_download_report(project_id = PC_projects$project_id[i], sensor_id = "PC", reports = c("location"), weather_cols = FALSE)
-#
-#   if (is.null(nrow(loc))) next
-#
-#   loc <- loc %>%
-#     select(location_id,latitude,longitude) %>%
-#     unique()
-#
-#   rec <- wt_download_report(project_id = PC_projects$project_id[i], sensor_id = "PC", reports = c("point_count"), weather_cols = FALSE) %>%
-#     mutate(year = as.numeric(year(survey_date))) %>%
-#     select(project_id,location_id,year) %>%
-#     unique()
-#
-#   loc <- wt_download_report(project_id = PC_projects$project_id[i], sensor_id = "PC", reports = c("location"), weather_cols = FALSE) %>%
-#     select(location_id,latitude,longitude) %>%
-#     unique()
-#
-#   dat <- full_join(loc,rec)
-#
-#   PC_fulldat <- rbind(PC_fulldat, dat)
-# }
-#
-# write.csv(PC_fulldat, file = "../Data_Cleaned/WildTrax/WildTrax_PC_locations.csv", row.names = FALSE)
-#
+
+#' Download location and year information from WildTrax
+#'
+#' @param proj_id proect_id in wildTrax
+#'
+#' @return
+#' @export
+#'
+#' @examples
+wt_dl_loc_year <- function(proj_id, sens_id){
+  rec_id <- ifelse(sens_id == "ARU", "recording", "point_count")
+
+  loc <- wt_download_report(project_id = proj_id, sensor_id = sens_id,
+                            reports = c("location"), weather_cols = FALSE)
+
+  if (is.null(nrow(loc))) return(NULL)
+
+  loc <- loc %>%
+    select(location_id,latitude,longitude) %>%
+    unique()
+
+  rec <- wt_download_report(project_id = proj_id, sensor_id = sens_id,
+                            reports = c(rec_id), weather_cols = FALSE) %>%
+    mutate(year = as.numeric(year(recording_date_time))) %>%
+    select(project_id,location_id,year) %>%
+    unique()
+
+  dat <- full_join(loc, rec, by = join_by(location_id))
+  dat
+}
+
+ARU_fulldat <- map(ARU_projects$project_id, ~wt_dl_loc_year(.x, sens_id = "ARU")) %>%
+    bind_rows()
+
+write.csv(ARU_fulldat, file = "../Data_Cleaned/WildTrax/WildTrax_ARU_locations.csv", row.names = FALSE)
+
+
+# ---------------------------------------------------------
+# Download projects with 'PC' data
+# ---------------------------------------------------------
+
+PC_fulldat <- data.frame()
+
+for (i in 1:nrow(PC_projects)){
+  print(i)
+
+  loc <- wt_download_report(project_id = PC_projects$project_id[i], sensor_id = "PC", reports = c("location"), weather_cols = FALSE)
+
+  if (is.null(nrow(loc))) next
+
+  loc <- loc %>%
+    select(location_id,latitude,longitude) %>%
+    unique()
+
+  rec <- wt_download_report(project_id = PC_projects$project_id[i], sensor_id = "PC", reports = c("point_count"), weather_cols = FALSE) %>%
+    mutate(year = as.numeric(year(survey_date))) %>%
+    select(project_id,location_id,year) %>%
+    unique()
+
+  loc <- wt_download_report(project_id = PC_projects$project_id[i], sensor_id = "PC", reports = c("location"), weather_cols = FALSE) %>%
+    select(location_id,latitude,longitude) %>%
+    unique()
+
+  dat <- full_join(loc,rec)
+
+  PC_fulldat <- rbind(PC_fulldat, dat)
+}
+
+PC_fulldat2 <- map(PC_projects$project_id, ~wt_dl_loc_year(.x, sens_id = "PC")) %>%
+  bind_rows()
+
+write.csv(PC_fulldat, file = "../Data_Cleaned/WildTrax/WildTrax_PC_locations.csv", row.names = FALSE)
+
 # ---------------------------------------------------------
 # Subset to data within Study Area Boundary
 # ---------------------------------------------------------
@@ -195,7 +215,9 @@ PC_summary <- PC_sf %>%
 write.csv(ARU_summary,file = "../Data_Cleaned/WildTrax/WildTrax_ARU_summary.csv",row.names = FALSE)
 write.csv(PC_summary,file = "../Data_Cleaned/WildTrax/WildTrax_PC_summary.csv",row.names = FALSE)
 
-
+# TODO: SE Question would the wildtrax process for converting ARU data to Point
+# Count data work here? does it do the same thing...?
+# Also wt_make_wide does some similar things what does it do differently?
 
 # *********************************************************
 # *********************************************************
