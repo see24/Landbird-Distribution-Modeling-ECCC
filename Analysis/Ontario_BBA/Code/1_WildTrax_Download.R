@@ -110,6 +110,7 @@ PC_projects <- wt_get_download_summary(sensor_id = 'PC') %>% subset(sensor == "P
 #' @examples
 wt_dl_loc_year <- function(proj_id, sens_id){
   rec_id <- ifelse(sens_id == "ARU", "recording", "point_count")
+  date_col <- ifelse(sens_id == "ARU", "recording_date_time", "survey_date")
 
   loc <- wt_download_report(project_id = proj_id, sensor_id = sens_id,
                             reports = c("location"), weather_cols = FALSE)
@@ -122,7 +123,7 @@ wt_dl_loc_year <- function(proj_id, sens_id){
 
   rec <- wt_download_report(project_id = proj_id, sensor_id = sens_id,
                             reports = c(rec_id), weather_cols = FALSE) %>%
-    mutate(year = as.numeric(year(recording_date_time))) %>%
+    mutate(year = as.numeric(year(.data[[date_col]]))) %>%
     select(project_id,location_id,year) %>%
     unique()
 
@@ -140,34 +141,7 @@ write.csv(ARU_fulldat, file = "../Data_Cleaned/WildTrax/WildTrax_ARU_locations.c
 # Download projects with 'PC' data
 # ---------------------------------------------------------
 
-PC_fulldat <- data.frame()
-
-for (i in 1:nrow(PC_projects)){
-  print(i)
-
-  loc <- wt_download_report(project_id = PC_projects$project_id[i], sensor_id = "PC", reports = c("location"), weather_cols = FALSE)
-
-  if (is.null(nrow(loc))) next
-
-  loc <- loc %>%
-    select(location_id,latitude,longitude) %>%
-    unique()
-
-  rec <- wt_download_report(project_id = PC_projects$project_id[i], sensor_id = "PC", reports = c("point_count"), weather_cols = FALSE) %>%
-    mutate(year = as.numeric(year(survey_date))) %>%
-    select(project_id,location_id,year) %>%
-    unique()
-
-  loc <- wt_download_report(project_id = PC_projects$project_id[i], sensor_id = "PC", reports = c("location"), weather_cols = FALSE) %>%
-    select(location_id,latitude,longitude) %>%
-    unique()
-
-  dat <- full_join(loc,rec)
-
-  PC_fulldat <- rbind(PC_fulldat, dat)
-}
-
-PC_fulldat2 <- map(PC_projects$project_id, ~wt_dl_loc_year(.x, sens_id = "PC")) %>%
+PC_fulldat <- map(PC_projects$project_id, ~wt_dl_loc_year(.x, sens_id = "PC")) %>%
   bind_rows()
 
 write.csv(PC_fulldat, file = "../Data_Cleaned/WildTrax/WildTrax_PC_locations.csv", row.names = FALSE)
@@ -327,7 +301,10 @@ subset(ARU_recordings_SPT,recording_id %in% duplicated_ids) %>% arrange(recordin
 # Remove duplicated recording IDs
 # (!!! THIS NEEDS TO BE CAREFULLY INSPECTED IN THE FUTURE  !!!)
 duplicated_rows <- which(duplicated(ARU_recordings_SPT$recording_id))
-ARU_recordings_SPT <- ARU_recordings_SPT[-duplicated_rows,]
+# if no dups drops all rows, need to choose rows to keep
+keep_rows <- setdiff(1:nrow(ARU_recordings_SPT), duplicated_rows)
+
+ARU_recordings_SPT <- ARU_recordings_SPT[keep_rows,]
 
 # ---------------------------------------------------------
 # Process tags (count individuals)
@@ -420,7 +397,37 @@ ARU_counts_SPM <- ARU_tags_SPM %>%
 # Same ordering as ARU_recordings_SPM
 mean(ARU_counts_SPM$recording_id == ARU_recordings_SPM$recording_id) # should be 1
 
-
+# Use WildTrax auto conversion of ARU to PC? #==============
+# ARU_as_PC_main <- data.frame()
+#
+# for (i in 1:nrow(ARU_summary)){
+#   project_name = ARU_summary$project[i]
+#   PID = subset(ARU_projects, project == project_name)$project_id
+#   recs <- wt_download_report(project_id = PID, sensor_id = "PC", reports = c("main"), weather_cols = FALSE)
+#   ARU_as_PC_main <- rbind(ARU_as_PC_main,recs)
+# }
+#
+# ARU_as_PC_tidy <- wt_tidy_species(ARU_as_PC_main, remove = "mammals", sensor = "PC")
+# for (acc in c("amphibians", "abiotic", "insects", "unknown")) {
+#   ARU_as_PC_tidy <- wt_tidy_species(ARU_as_PC_tidy, remove = acc, sensor = "PC")
+# }
+#
+# # replace tmtt only works for ARU data but ours is in PC format, however there
+# # are tmtc values ... seems to be the same locations in both
+# # pretend to be ARU so it works
+# # This also drops 70 NA individual counts. Not sure if that is correct...
+# ARU_as_PC_tidy2 <- ARU_as_PC_tidy %>%
+#   mutate(recording_date_time = survey_date,
+#          observer_id = 0,
+#          individual_count = ifelse(individual_count == "TMTC", "TMTT", individual_count)) %>%
+#   wt_replace_tmtt()
+#
+# #  NAs are dropped but then when it is pivoted to wide these will be converted
+# #  to zeros if there is at least one species from the site
+# ARU_as_PC_wide <- ARU_as_PC_tidy2 %>% wt_make_wide(sensor = "PC")
+#
+# # Need to check that they are in the same order...
+# abs(ARU_counts_SPT$ABDU - ARU_as_PC_wide$ABDU)
 # *********************************************************
 # *********************************************************
 # PROCESS POINT COUNT DATA
