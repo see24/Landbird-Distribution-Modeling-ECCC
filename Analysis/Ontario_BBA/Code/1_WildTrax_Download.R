@@ -613,6 +613,9 @@ WT_surveyinfo <- bind_rows(ARU_recordings_combined, PC_surveys)
 # *********************************************************
 # *********************************************************
 
+# TODO: Question: why switching back to WT codes when they were converted to BSC
+# codes earlier? Might lose some sp not in WT codes.
+
 # All species in WT database
 WT_species <- wildRtrax::wt_get_species() %>% subset(species_class == "AVES")
 WT_species_codes <- WT_species$species_code
